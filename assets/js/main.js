@@ -8,6 +8,7 @@ function secondstoMinutesandSeconds(seconds){
     return minutes + ':' + (leftSeconds < 10 ? '0':'') + leftSeconds;
 }
 
+const PLAYER_STORAGE_KEY = 'PLAYER_STORAGE';
 const player = $('.player');
 const playList = $('.playlist');
 const audio = $('#audio');
@@ -19,16 +20,6 @@ const repeatAudio = $('.btn.btn-repeat');
 const preAudio = $('.btn.btn-pre');
 const nextAudio = $('.btn.btn-next');
 const randomAudio = $('.btn.btn-random');
-const cdThumbAnimate = cdThumb.animate([{
-    transform: "rotate(0)"
-    },
-    {
-    transform: "rotate(360deg)"}],{
-        duration:15000,
-        iterations:Infinity
-    }
-);
-
 const playBarCurrent = $('.play-bar .play-current');
 const playBarLength =   $('.play-bar .play-length');
 const progress = $('#progress');
@@ -39,6 +30,10 @@ progress.oninput=function(){
 }
 const app={
     currentIndex:0,
+    isPlaying:false,
+    isRandom:false,
+    isRepeat:false,
+    config: JSON.parse(localStorage.getItem(PLAYER_STORAGE_KEY))||{},
     songs:[
         {
             name:'Stay With Me',
@@ -111,6 +106,10 @@ const app={
             duration:118
         }
     ],
+    setConfig(key, value){
+        this.config[key] = value;
+        localStorage.setItem(PLAYER_STORAGE_KEY,JSON.stringify(this.config));
+    },
     render(){
         const htmls=this.songs.map((song)=>{
             return `
@@ -169,47 +168,30 @@ const app={
         );
         cdThumbAnimate.pause();
 
-        // Xu ly khi them song vao list yeu thich
-        listSongs.forEach((songItem,index) => {
-            const optionFavorites = songItem.querySelector('.song-option .option-favorites');
-
-            optionFavorites.onclick=function(event){
-                if(this.classList.contains("active")){
-                    this.classList.remove("active");
-                }else{
-                    this.classList.add("active");
-                }
-                event.stopPropagation();
-            }
-        });
-        
-
         // Xu ly khi click Play/Pause Button
         toggleAudio.onclick=function(){
-                if(player.classList.contains("playing")){
-                    audio.pause();
-                } else{
-                    audio.play();
-                }
+            if(_this.isPlaying){
+                audio.pause();
+            } else{
+                audio.play();
+            }
         }
         audio.onplay=function(){
+            _this.isPlaying=true;
             player.classList.add("playing");
             cdThumbAnimate.play();
         }
         audio.onpause=function(){
+            _this.isPlaying=false;
             player.classList.remove("playing");
             cdThumbAnimate.pause(); 
 
         }
         // Xu ly khi click Repeat Button
         repeatAudio.onclick=function(){
-            if(this.classList.contains("active")){
-                this.classList.remove("active");
-                audio.loop=false;
-            }else{
-                this.classList.add("active");
-                audio.loop=true;
-            }
+            _this.isRepeat=!_this.isRepeat;
+            this.classList.toggle("active",_this.isRepeat);
+            _this.setConfig('isRepeat',_this.isRepeat);
         }
         
         // Xu ly khi click Previous Button
@@ -219,6 +201,7 @@ const app={
                 _this.currentIndex=(_this.currentIndex-1 + _this.songs.length)%_this.songs.length;
                 _this.loadSong();
                 audio.play();
+                _this.setConfig('currentIndex', _this.currentIndex);
             }else {
                 audio.currentTime=0;
             }
@@ -230,27 +213,33 @@ const app={
             _this.currentIndex=(_this.currentIndex+1)%_this.songs.length;
             _this.loadSong();
             audio.play();
+            _this.setConfig('currentIndex', _this.currentIndex);
         }
 
         // Xu ly khi click Random Button
         randomAudio.onclick=function(){
-            if(this.classList.contains("active")){
-                this.classList.remove("active"); 
-            }else{
-                this.classList.add("active");
-            }
+            _this.isRandom=!_this.isRandom;
+            this.classList.toggle("active",_this.isRandom); 
+            _this.setConfig('isRandom',_this.isRandom);
         }
+
         audio.onended=function(){
             // 2s sau khi ket thuc, tu chuyen qua bai moi
             setTimeout(function(){
                 listSongs[_this.currentIndex].classList.remove('active');
-                if(randomAudio.classList.contains("active")){
-                    _this.currentIndex=Math.floor(Math.random()*(_this.songs.length+1));
+                if(_this.isRepeat){
+                    _this.isCurrentIndex =_this.currentIndex;
+                } else if(_this.isRandom) {
+                    var oldIndex=_this.currentIndex;
+                    do{
+                        _this.currentIndex=Math.floor(Math.random()*(_this.songs.length));
+                    }while(_this.currentIndex === oldIndex)
                 } else {
                     _this.currentIndex=(_this.currentIndex+1)%_this.songs.length;
                 }
                 _this.loadSong();
                 audio.play();
+                _this.setConfig('currentIndex', _this.currentIndex);
             },2000);
             
         }
@@ -267,12 +256,31 @@ const app={
 
         // Xu ly khi chon nhac tu Play List
         listSongs.forEach((songItem,index) => {
-            songItem.onclick=() =>{
-                listSongs[this.currentIndex].classList.remove('active');
-                this.currentIndex=index;
-                songItem.classList.add('active');
-                this.loadSong();
-                audio.play();
+            songItem.onclick=(e) =>{
+                // Event khi chuyen sang bai hat duoc chon
+                if(
+                    e.target.closest('.song:not(.active)') &&
+                    !e.target.closest('.song-option')
+                ){
+                    listSongs[this.currentIndex].classList.remove('active');
+                    this.currentIndex=index;
+                    songItem.classList.add('active');
+                    this.loadSong();
+                    audio.play();
+                    this.setConfig('currentIndex', this.currentIndex);
+                }
+
+                //Event khi chon option cua bai hat
+                if(e.target.closest('.song-option .option-favorites')){
+                    songItem.querySelector('.song-option .option-favorites').onclick = 
+                    function(event){
+                        if(this.classList.contains("active")){
+                            this.classList.remove("active");
+                        }else{
+                            this.classList.add("active");
+                        }
+                    }
+                }
             }
         });
 
@@ -282,6 +290,14 @@ const app={
             audio.currentTime=audio.duration*progessPercent;
             audio.play();
         }
+    },
+    loadConfig(){
+        this.currentIndex=this.config.currentIndex === null ? 0 : this.config.currentIndex;
+        this.isRepeat=this.config.isRepeat === null ? 0 : this.config.isRepeat;
+        this.isRandom=this.config.isRandom === null ? 0 : this.config.isRandom;
+        // Hien thi trang thai ban dau ti Storage
+        repeatAudio.classList.toggle("active",this.isRepeat);
+        randomAudio.classList.toggle("active",this.isRandom); 
     },
     loadSong(){
         let hasChooseSong=this.currentSong;
@@ -294,6 +310,8 @@ const app={
         playList.children[this.currentIndex].classList.add("active");   
     },
     start(){
+        // 
+        this.loadConfig();
         //Dinh nghia 1 so thuoc tinh cho Object (get,set,...)
         this.defineProperties();
 
