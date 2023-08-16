@@ -292,9 +292,9 @@ const app={
         }
     },
     loadConfig(){
-        this.currentIndex=this.config.currentIndex === null ? 0 : this.config.currentIndex;
-        this.isRepeat=this.config.isRepeat === null ? 0 : this.config.isRepeat;
-        this.isRandom=this.config.isRandom === null ? 0 : this.config.isRandom;
+        this.currentIndex= (typeof this.config.currentIndex ) === 'undefined' ? 0 : this.config.currentIndex;
+        this.isRepeat=(typeof this.config.isRepeat ) === 'undefined' ? false : this.config.isRepeat;
+        this.isRandom=(typeof this.config.isRandom ) === 'undefined' ? false : this.config.isRandom;
         // Hien thi trang thai ban dau ti Storage
         repeatAudio.classList.toggle("active",this.isRepeat);
         randomAudio.classList.toggle("active",this.isRandom); 
